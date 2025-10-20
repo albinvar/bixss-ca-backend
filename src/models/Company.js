@@ -83,14 +83,16 @@ companySchema.index({ createdBy: 1 });
 
 // Virtual for all users (admins + representative)
 companySchema.virtual('allAdmins').get(function () {
-  return [this.representative, ...this.companyAdmins];
+  const admins = Array.isArray(this.companyAdmins) ? this.companyAdmins : [];
+  return [this.representative, ...admins];
 });
 
 // Method to check if a user is an admin of this company
 companySchema.methods.isCompanyAdmin = function (userId) {
+  const admins = Array.isArray(this.companyAdmins) ? this.companyAdmins : [];
   return (
     this.representative.toString() === userId.toString() ||
-    this.companyAdmins.some((admin) => admin.toString() === userId.toString())
+    admins.some((admin) => admin.toString() === userId.toString())
   );
 };
 

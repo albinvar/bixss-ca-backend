@@ -22,6 +22,12 @@ const app = express();
 // Connect to database
 connectDB();
 
+// Start Redis consumer for analysis results
+const analysisConsumer = require('./services/analysisConsumer');
+analysisConsumer.connect().catch(err => {
+  console.error('Failed to start analysis consumer:', err);
+});
+
 // Security middleware
 app.use(helmet());
 
@@ -70,9 +76,14 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 }));
 
 // API routes
+const documentRoutes = require('./routes/document.routes');
+const analysisRoutes = require('./routes/analysis.routes');
+
 app.use('/api/auth', authRoutes);
 app.use('/api/companies', companyRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/documents', documentRoutes);
+app.use('/api/analysis', analysisRoutes);
 
 // 404 handler
 app.use(notFound);
