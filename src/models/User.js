@@ -50,6 +50,40 @@ const userSchema = new mongoose.Schema(
         ref: 'Company',
       },
     ],
+    // Professional details for CA users
+    phone: {
+      type: String,
+      trim: true,
+    },
+    caLicenseNumber: {
+      type: String,
+      trim: true,
+    },
+    registrationYear: {
+      type: Number,
+    },
+    firm: {
+      type: String,
+      trim: true,
+    },
+    specialization: [{
+      type: String,
+      trim: true,
+    }],
+    yearsOfExperience: {
+      type: Number,
+    },
+    address: {
+      street: String,
+      city: String,
+      state: String,
+      zipCode: String,
+      country: String,
+    },
+    profileComplete: {
+      type: Boolean,
+      default: false,
+    },
     isActive: {
       type: Boolean,
       default: true,

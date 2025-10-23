@@ -39,6 +39,10 @@ const companySchema = new mongoose.Schema(
         ref: 'User',
       },
     ],
+    assignedCA: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
     invitedCAs: [
       {
         ca: {

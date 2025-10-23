@@ -52,18 +52,24 @@ exports.storeAnalysis = async (req, res) => {
       documentCount: documents.length,
       totalPagesProcessed: analysisData.metadata?.total_pages_processed || 0,
 
-      // Store the complete analysis data
-      companyInformation: analysisData.company_information || {},
-      balanceSheetData: analysisData.balance_sheet_data || {},
-      incomeStatementData: analysisData.income_statement_data || {},
-      cashFlowData: analysisData.cash_flow_data || {},
-      comprehensiveFinancialMetrics: analysisData.comprehensive_financial_metrics || {},
-      financialHealthAnalysis: analysisData.financial_health_analysis || {},
-      trendAnalysis: analysisData.trend_analysis || {},
-      riskAssessment: analysisData.risk_assessment || {},
-      industryBenchmarking: analysisData.industry_benchmarking || {},
-      analysisMetadata: analysisData.analysis_metadata || {},
-      consolidationMetadata: analysisData.consolidation_metadata || {},
+      // Store the complete analysis data in consolidatedData
+      consolidatedData: {
+        company_information: analysisData.company_information || {},
+        balance_sheet_data: analysisData.balance_sheet_data || {},
+        income_statement_data: analysisData.income_statement_data || {},
+        cash_flow_data: analysisData.cash_flow_data || {},
+        comprehensive_financial_metrics: analysisData.comprehensive_financial_metrics || {},
+        trend_analysis: analysisData.trend_analysis || {},
+        risk_assessment: analysisData.risk_assessment || {},
+        industry_benchmarking: analysisData.industry_benchmarking || {},
+        future_outlook: analysisData.future_outlook || {},
+        key_findings: analysisData.key_findings || {},
+        analysis_metadata: analysisData.analysis_metadata || {},
+        consolidation_metadata: analysisData.consolidation_metadata || {}
+      },
+
+      // Store health analysis separately as expected by the model
+      healthAnalysis: analysisData.financial_health_analysis || {},
 
       status: 'completed'
     });
@@ -360,7 +366,7 @@ function buildComparisonData(analyses) {
 // Trigger analysis by sending documents to Python microservice
 exports.triggerAnalysis = async (req, res) => {
   try {
-    const { documentIds, companyId, companyName, analysisType = 'comprehensive' } = req.body;
+    const { documentIds, companyId, companyName, analysisType = 'comprehensive', industry, benchmarkId } = req.body;
 
     // Validate inputs
     if (!documentIds || !Array.isArray(documentIds) || documentIds.length === 0) {
@@ -390,6 +396,29 @@ exports.triggerAnalysis = async (req, res) => {
       });
     }
 
+    // Fetch benchmark values
+    const Benchmark = require('../models/Benchmark');
+    let benchmark;
+
+    if (benchmarkId) {
+      // Use specific benchmark if provided
+      benchmark = await Benchmark.findById(benchmarkId);
+    } else {
+      // Use default benchmark for industry
+      benchmark = await Benchmark.findOne({
+        industry: industry || 'General',
+        isDefault: true
+      });
+
+      // Fallback to general default if industry-specific not found
+      if (!benchmark) {
+        benchmark = await Benchmark.findOne({
+          industry: 'General',
+          isDefault: true
+        });
+      }
+    }
+
     // Prepare file data for Python
     const fs = require('fs').promises;
     const FormData = require('form-data');
@@ -414,6 +443,20 @@ exports.triggerAnalysis = async (req, res) => {
     formData.append('company_id', companyId);
     formData.append('company_name', companyName || 'Unknown Company');
     formData.append('analysis_type', analysisType);
+
+    // Add benchmark values if available
+    if (benchmark) {
+      formData.append('benchmarks', JSON.stringify({
+        industry: benchmark.industry,
+        liquidityRatios: benchmark.liquidityRatios,
+        profitabilityRatios: benchmark.profitabilityRatios,
+        leverageRatios: benchmark.leverageRatios,
+        efficiencyRatios: benchmark.efficiencyRatios
+      }));
+      console.log(`Using benchmark: ${benchmark.name} (${benchmark.industry})`);
+    } else {
+      console.warn('No benchmark found, analysis will use default thresholds');
+    }
 
     // Forward to Python microservice's stateless analyze-files endpoint
     const pythonUrl = process.env.PYTHON_SERVICE_URL || 'http://localhost:8000';

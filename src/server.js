@@ -78,12 +78,22 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 // API routes
 const documentRoutes = require('./routes/document.routes');
 const analysisRoutes = require('./routes/analysis.routes');
+const benchmarkRoutes = require('./routes/benchmark.routes');
+const analysisNoteRoutes = require('./routes/analysisNote.routes');
+const pdfRoutes = require('./routes/pdf.routes');
+const adminRoutes = require('./routes/admin.routes');
+const caRoutes = require('./routes/ca.routes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/companies', companyRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/analysis', analysisRoutes);
+app.use('/api/benchmarks', benchmarkRoutes);
+app.use('/api/analysis-notes', analysisNoteRoutes);
+app.use('/api/pdf', pdfRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/ca', caRoutes);
 
 // 404 handler
 app.use(notFound);

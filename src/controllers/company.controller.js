@@ -81,6 +81,7 @@ const getAllCompanies = async (req, res, next) => {
       .populate('representative', 'name email')
       .populate('companyAdmins', 'name email')
       .populate('createdBy', 'name email')
+      .populate('assignedCA', 'name email')
       .limit(limit * 1)
       .skip((page - 1) * limit)
       .sort({ createdAt: -1 });
