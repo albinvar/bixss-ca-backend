@@ -47,6 +47,17 @@ class AnalysisConsumer {
     try {
       const data = JSON.parse(message);
       console.log(`📥 Received analysis message: ${data.analysis_id}`);
+      console.log(`🔍 Message keys: ${Object.keys(data).join(', ')}`);
+      console.log(`🔍 analysis_data exists: ${!!data.analysis_data}`);
+      console.log(`🔍 analysis_data type: ${typeof data.analysis_data}`);
+
+      // Validate required fields
+      if (!data.analysis_id) {
+        throw new Error('Missing analysis_id in message');
+      }
+      if (!data.analysis_data) {
+        throw new Error('Missing analysis_data in message');
+      }
 
       const {
         job_id,
@@ -57,6 +68,9 @@ class AnalysisConsumer {
         document_ids,
         metadata
       } = data;
+
+      console.log(`💾 Saving to MongoDB: ${analysis_id}`);
+      console.log(`📊 Company: ${company_name} (${company_id})`);
 
       // Get document details from MongoDB if IDs provided
       let documents = [];
@@ -70,7 +84,6 @@ class AnalysisConsumer {
       }
 
       // Create or update analysis in MongoDB
-      // Match PostgreSQL structure: consolidated_data + health_analysis
       const analysis = await Analysis.findOneAndUpdate(
         { analysisId: analysis_id },
         {
@@ -81,9 +94,9 @@ class AnalysisConsumer {
           documentCount: metadata?.document_count || documents.length,
           totalPagesProcessed: metadata?.total_pages_processed || 0,
 
-          // Store as JSONB-like structure (same as PostgreSQL)
+          // Store complete analysis data
           consolidatedData: analysis_data,
-          healthAnalysis: analysis_data.financial_health_analysis || {},
+          healthAnalysis: analysis_data?.financial_health_analysis || {},
 
           status: 'completed'
         },
@@ -105,10 +118,12 @@ class AnalysisConsumer {
         );
       }
 
-      console.log(`✅ Stored analysis ${analysis_id} in MongoDB`);
+      console.log(`✅ Analysis ${analysis_id} saved successfully to MongoDB`);
+      console.log(`✅ Document ID: ${analysis._id}`);
 
     } catch (error) {
-      console.error('Error handling analysis message:', error);
+      console.error('❌ Error handling analysis message:', error);
+      console.error('   Stack:', error.stack);
       // Log but don't throw - we don't want to crash the consumer
     }
   }

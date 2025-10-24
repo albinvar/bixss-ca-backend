@@ -28,3 +28,11 @@ Thumbs.db
 
 # Docker
 docker-compose.override.yml
+
+# Uploads
+uploads/
+
+# Temp/Debug files
+api.json
+gem.json
+*.pdf

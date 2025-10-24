@@ -151,6 +151,7 @@ const getAllCAs = async (req, res, next) => {
     }
 
     const cas = await User.find(query)
+      .select('-password -refreshToken') // Exclude sensitive fields
       .populate('invitedCompanies', 'name')
       .limit(limit * 1)
       .skip((page - 1) * limit)
@@ -165,6 +166,7 @@ const getAllCAs = async (req, res, next) => {
 
         return {
           ...ca,
+          // All professional fields are already included from the query
           stats: {
             assignedCompanies,
             invitedCompanies: ca.invitedCompanies?.length || 0,

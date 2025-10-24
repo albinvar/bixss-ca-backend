@@ -59,14 +59,14 @@ const createCompany = async (req, res, next) => {
  */
 const getAllCompanies = async (req, res, next) => {
   try {
-    const { page = 1, limit = 10, search = '' } = req.query;
+    const { page = 1, limit = 10, search = '', status = 'all', industry = '' } = req.query;
 
     const query = {};
 
     // If not super admin, filter by user's accessible companies
     if (req.user.role !== 'SUPER_ADMIN') {
       if (req.user.role === 'CA') {
-        query['invitedCAs.ca'] = req.user._id;
+        query.assignedCA = req.user._id;
       } else if (['COMPANY_ADMIN', 'COMPANY_USER'].includes(req.user.role)) {
         query._id = req.user.company;
       }
@@ -74,14 +74,27 @@ const getAllCompanies = async (req, res, next) => {
 
     // Search filter
     if (search) {
-      query.name = { $regex: search, $options: 'i' };
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { registrationNumber: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    // Status filter
+    if (status !== 'all') {
+      query.isActive = status === 'active';
+    }
+
+    // Industry filter
+    if (industry) {
+      query.industry = { $regex: industry, $options: 'i' };
     }
 
     const companies = await Company.find(query)
       .populate('representative', 'name email')
       .populate('companyAdmins', 'name email')
       .populate('createdBy', 'name email')
-      .populate('assignedCA', 'name email')
+      .populate('assignedCA', 'name email phone firm')
       .limit(limit * 1)
       .skip((page - 1) * limit)
       .sort({ createdAt: -1 });
@@ -92,9 +105,12 @@ const getAllCompanies = async (req, res, next) => {
       success: true,
       data: {
         companies,
-        totalPages: Math.ceil(count / limit),
-        currentPage: page,
-        total: count,
+        pagination: {
+          totalPages: Math.ceil(count / limit),
+          currentPage: parseInt(page),
+          total: count,
+          limit: parseInt(limit)
+        }
       },
     });
   } catch (error) {
