@@ -42,7 +42,7 @@ exports.storeAnalysis = async (req, res) => {
       }));
     }
 
-    // Create analysis record
+    // Create analysis record with new dual extraction structure
     const analysis = new Analysis({
       analysisId: uuidv4(),
       company: companyId,
@@ -55,14 +55,26 @@ exports.storeAnalysis = async (req, res) => {
       // Store the complete analysis data in consolidatedData
       consolidatedData: {
         company_information: analysisData.company_information || {},
+
+        // NEW: Dual extraction data
+        extracted_fields: analysisData.extracted_fields || {},  // ALL original fields
+        standardized_fields: analysisData.standardized_fields || {},  // Mapped fields
+        calculated_metrics: analysisData.calculated_metrics || {},  // Smart ratios
+
+        // Legacy support (keep for backward compatibility)
         balance_sheet_data: analysisData.balance_sheet_data || {},
         income_statement_data: analysisData.income_statement_data || {},
         cash_flow_data: analysisData.cash_flow_data || {},
         comprehensive_financial_metrics: analysisData.comprehensive_financial_metrics || {},
+
         trend_analysis: analysisData.trend_analysis || {},
         risk_assessment: analysisData.risk_assessment || {},
         industry_benchmarking: analysisData.industry_benchmarking || {},
         future_outlook: analysisData.future_outlook || {},
+        executive_summary: analysisData.executive_summary || {},
+        detailed_analysis: analysisData.detailed_analysis || {},
+        graphical_data: analysisData.graphical_data || {},
+        strategic_recommendations: analysisData.strategic_recommendations || [],
         key_findings: analysisData.key_findings || {},
         analysis_metadata: analysisData.analysis_metadata || {},
         consolidation_metadata: analysisData.consolidation_metadata || {}
@@ -122,19 +134,33 @@ exports.getAnalysis = async (req, res) => {
       });
     }
 
-    // Return in same format as PostgreSQL API
+    // Return with new dual extraction structure
     const consolidatedData = analysis.consolidatedData || {};
+
+    // Extract available years from company_information
+    const companyInfo = consolidatedData.company_information || {};
+    const availableYears = companyInfo.available_years || [];
 
     res.json({
       success: true,
       data: {
         analysis_id: analysis.analysisId,
         company_id: analysis.company._id,
-        company_information: consolidatedData.company_information || {},
+        company_information: companyInfo,
+        available_years: availableYears,  // Add top-level for easy access
+
+        // NEW: Dual extraction data
+        extracted_fields: consolidatedData.extracted_fields || {},  // ALL original fields
+        standardized_fields: consolidatedData.standardized_fields || {},  // Mapped fields
+        calculated_metrics: consolidatedData.calculated_metrics || {},  // Smart ratios with availability flags
+
+        // Legacy fields (for backward compatibility with existing frontend)
         balance_sheet_data: consolidatedData.balance_sheet_data || {},
         income_statement_data: consolidatedData.income_statement_data || {},
         cash_flow_data: consolidatedData.cash_flow_data || {},
         financial_metrics: consolidatedData.comprehensive_financial_metrics || {},
+
+        // Analysis and insights
         health_analysis: analysis.healthAnalysis || {},
         trend_analysis: consolidatedData.trend_analysis || {},
         risk_assessment: consolidatedData.risk_assessment || {},
@@ -144,6 +170,8 @@ exports.getAnalysis = async (req, res) => {
         detailed_analysis: consolidatedData.detailed_analysis || {},
         future_outlook: consolidatedData.future_outlook || {},
         strategic_recommendations: consolidatedData.strategic_recommendations || [],
+
+        // Metadata
         document_count: analysis.documentCount,
         total_pages_processed: analysis.totalPagesProcessed,
         created_at: analysis.createdAt,
@@ -424,24 +452,56 @@ exports.triggerAnalysis = async (req, res) => {
       }
     }
 
-    // Prepare file data for Python
+    // Prepare file data for Python based on storage type
     const fs = require('fs').promises;
     const FormData = require('form-data');
     const axios = require('axios');
+    const s3Service = require('../services/s3Service');
+    const config = require('../config/config');
 
     const formData = new FormData();
+    const isS3Mode = config.storage.type === 's3';
 
-    // Add each document file to form data
-    for (const doc of documents) {
-      try {
-        const fileBuffer = await fs.readFile(doc.storagePath);
-        formData.append('files', fileBuffer, {
-          filename: doc.originalName,
-          contentType: doc.mimeType
-        });
-      } catch (error) {
-        console.error(`Failed to read file ${doc.storagePath}:`, error);
+    if (isS3Mode) {
+      // S3 MODE: Send presigned URLs instead of file buffers
+      const fileUrls = [];
+
+      for (const doc of documents) {
+        try {
+          // Generate presigned URL (valid for 1 hour)
+          const presignedUrl = await s3Service.getFileUrl({
+            storage: doc.storageType,
+            bucket: doc.s3Bucket,
+            key: doc.s3Key
+          }, 3600);
+
+          fileUrls.push({
+            url: presignedUrl,
+            filename: doc.originalName,
+            mimeType: doc.mimeType
+          });
+        } catch (error) {
+          console.error(`Failed to generate presigned URL for ${doc.originalName}:`, error);
+        }
       }
+
+      // Send URLs as JSON to Python
+      formData.append('file_urls', JSON.stringify(fileUrls));
+      console.log(`📎 Sending ${fileUrls.length} presigned URLs to Python microservice`);
+    } else {
+      // LOCAL MODE: Send file buffers as before
+      for (const doc of documents) {
+        try {
+          const fileBuffer = await fs.readFile(doc.storagePath);
+          formData.append('files', fileBuffer, {
+            filename: doc.originalName,
+            contentType: doc.mimeType
+          });
+        } catch (error) {
+          console.error(`Failed to read file ${doc.storagePath}:`, error);
+        }
+      }
+      console.log(`📎 Sending ${documents.length} file buffers to Python microservice`);
     }
 
     // Add metadata

@@ -36,4 +36,14 @@ module.exports = {
   cors: {
     origin: process.env.CORS_ORIGIN || 'http://localhost:3001',
   },
+
+  // Storage Configuration
+  storage: {
+    type: process.env.STORAGE_TYPE || 'local', // 'local' or 's3'
+    localPath: process.env.LOCAL_UPLOAD_PATH || './uploads',
+    s3BucketName: process.env.AWS_S3_BUCKET_NAME,
+    s3Region: process.env.AWS_S3_REGION || 'us-east-1',
+    s3AccessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    s3SecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  },
 };

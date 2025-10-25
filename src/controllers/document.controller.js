@@ -1,25 +1,11 @@
 const Document = require('../models/Document');
 const { AppError } = require('../middleware/errorHandler');
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs').promises;
+const s3Service = require('../services/s3Service');
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: async (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '../../uploads');
-    try {
-      await fs.mkdir(uploadDir, { recursive: true });
-      cb(null, uploadDir);
-    } catch (error) {
-      cb(error, null);
-    }
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + '-' + file.originalname);
-  }
-});
+// Configure multer to use memory storage (files stored as Buffer in memory)
+// This allows us to upload to either local storage or S3 without hitting disk first
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage: storage,
@@ -86,18 +72,26 @@ const uploadDocuments = async (req, res, next) => {
       return 'other';
     };
 
-    // Create document records
+    // Upload files using S3Service (handles both S3 and local storage)
+    const uploadedFiles = await Promise.all(
+      files.map(file => s3Service.uploadFile(file, 'documents'))
+    );
+
+    // Create document records with storage info
     const documents = await Promise.all(
-      files.map(file => Document.create({
-        filename: file.filename,
-        originalName: file.originalname,
-        fileType: getFileType(file.mimetype),
-        mimeType: file.mimetype,
-        size: file.size,
+      uploadedFiles.map((fileInfo, index) => Document.create({
+        filename: fileInfo.originalName,
+        originalName: fileInfo.originalName,
+        fileType: getFileType(files[index].mimetype),
+        mimeType: files[index].mimetype,
+        size: fileInfo.size,
         category: category || 'Other',
         company: companyId,
         uploadedBy: req.user._id,
-        storagePath: file.path,
+        storagePath: fileInfo.path || fileInfo.key, // local path or S3 key
+        storageType: fileInfo.storage, // 'local' or 's3'
+        s3Bucket: fileInfo.bucket, // S3 bucket (if S3)
+        s3Key: fileInfo.key, // S3 key (if S3)
         status: 'uploaded',
       }))
     );
@@ -233,9 +227,14 @@ const deleteDocument = async (req, res, next) => {
       }
     }
 
-    // Delete file from storage
+    // Delete file from storage using S3Service
     try {
-      await fs.unlink(document.storagePath);
+      await s3Service.deleteFile({
+        storage: document.storageType,
+        path: document.storagePath,
+        bucket: document.s3Bucket,
+        key: document.s3Key
+      });
     } catch (error) {
       console.error('Error deleting file from storage:', error);
     }

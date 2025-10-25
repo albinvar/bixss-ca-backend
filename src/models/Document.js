@@ -63,6 +63,19 @@ const documentSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    storageType: {
+      type: String,
+      enum: ['local', 's3'],
+      default: 'local',
+    },
+    s3Bucket: {
+      type: String,
+      default: null,
+    },
+    s3Key: {
+      type: String,
+      default: null,
+    },
     metadata: {
       type: Map,
       of: String,
