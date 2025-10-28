@@ -83,6 +83,8 @@ const analysisNoteRoutes = require('./routes/analysisNote.routes');
 const pdfRoutes = require('./routes/pdf.routes');
 const adminRoutes = require('./routes/admin.routes');
 const caRoutes = require('./routes/ca.routes');
+const profileRoutes = require('./routes/profile.routes');
+const notificationRoutes = require('./routes/notification.routes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/companies', companyRoutes);
@@ -94,6 +96,8 @@ app.use('/api/analysis-notes', analysisNoteRoutes);
 app.use('/api/pdf', pdfRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/ca', caRoutes);
+app.use('/api/profile', profileRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // 404 handler
 app.use(notFound);

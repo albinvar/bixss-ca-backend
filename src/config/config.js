@@ -43,6 +43,7 @@ module.exports = {
     localPath: process.env.LOCAL_UPLOAD_PATH || './uploads',
     s3BucketName: process.env.AWS_S3_BUCKET_NAME,
     s3Region: process.env.AWS_S3_REGION || 'us-east-1',
+    s3Endpoint: process.env.AWS_S3_ENDPOINT, // For DigitalOcean Spaces or other S3-compatible storage
     s3AccessKeyId: process.env.AWS_ACCESS_KEY_ID,
     s3SecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   },

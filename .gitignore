@@ -36,3 +36,7 @@ uploads/
 api.json
 gem.json
 *.pdf
+
+SYSTEM_ARCHITECTURE_DIAGRAM.drawio
+SYSTEM_ARCHITECTURE_DIAGRAM.drawio.html
+SYSTEM_ARCHITECTURE.md

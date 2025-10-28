@@ -9,13 +9,21 @@ class S3Service {
     this.isProduction = config.storage.type === 's3';
 
     if (this.isProduction) {
-      this.s3Client = new S3Client({
+      const s3Config = {
         region: config.storage.s3Region,
         credentials: {
           accessKeyId: config.storage.s3AccessKeyId,
           secretAccessKey: config.storage.s3SecretAccessKey,
         },
-      });
+      };
+
+      // Add custom endpoint if provided (for DigitalOcean Spaces, etc.)
+      if (config.storage.s3Endpoint) {
+        s3Config.endpoint = config.storage.s3Endpoint;
+        s3Config.forcePathStyle = false; // DigitalOcean Spaces uses virtual-hosted-style URLs
+      }
+
+      this.s3Client = new S3Client(s3Config);
       this.bucket = config.storage.s3BucketName;
     }
 
@@ -52,11 +60,22 @@ class S3Service {
 
     await this.s3Client.send(command);
 
+    // Generate proper URL based on endpoint
+    let fileUrl;
+    if (config.storage.s3Endpoint) {
+      // DigitalOcean Spaces or other S3-compatible storage
+      const endpointHost = config.storage.s3Endpoint.replace('https://', '').replace('http://', '');
+      fileUrl = `https://${this.bucket}.${endpointHost}/${key}`;
+    } else {
+      // AWS S3
+      fileUrl = `https://${this.bucket}.s3.${config.storage.s3Region}.amazonaws.com/${key}`;
+    }
+
     return {
       storage: 's3',
       bucket: this.bucket,
       key: key,
-      url: `https://${this.bucket}.s3.${config.storage.s3Region}.amazonaws.com/${key}`,
+      url: fileUrl,
       originalName: file.originalname,
       size: file.size,
       mimetype: file.mimetype,

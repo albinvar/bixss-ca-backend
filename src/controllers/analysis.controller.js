@@ -330,9 +330,33 @@ function calculateTrend(analyses) {
 function buildComparisonData(analyses) {
   const metricTrends = {};
   const healthProgression = [];
+  const analysesComparison = [];
 
-  // Extract health progression
+  // Build detailed comparison for each analysis
   analyses.forEach(analysis => {
+    const analysisData = {
+      analysis_id: analysis.analysisId,
+      created_at: analysis.createdAt,
+      company_information: analysis.consolidatedData?.company_information || {},
+
+      // NEW: Dual extraction data from analysis API
+      extracted_fields: analysis.consolidatedData?.extracted_fields || {},
+      standardized_fields: analysis.consolidatedData?.standardized_fields || {},
+      calculated_metrics: analysis.consolidatedData?.calculated_metrics || {},
+
+      // Legacy data for backward compatibility
+      balance_sheet_data: analysis.consolidatedData?.balance_sheet_data || {},
+      income_statement_data: analysis.consolidatedData?.income_statement_data || {},
+      cash_flow_data: analysis.consolidatedData?.cash_flow_data || {},
+      comprehensive_financial_metrics: analysis.consolidatedData?.comprehensive_financial_metrics || {},
+
+      // Health analysis
+      health_analysis: analysis.healthAnalysis || {}
+    };
+
+    analysesComparison.push(analysisData);
+
+    // Extract health progression
     healthProgression.push({
       date: analysis.createdAt,
       analysis_id: analysis.analysisId,
@@ -341,34 +365,33 @@ function buildComparisonData(analyses) {
     });
   });
 
-  // Extract metric trends
-  const metricCategories = [
-    'liquidity_ratios',
-    'profitability_ratios',
-    'leverage_ratios',
-    'efficiency_ratios'
-  ];
+  // Extract metric trends from CALCULATED_METRICS (new dual extraction)
+  analyses.forEach(analysis => {
+    const calculatedMetrics = analysis.consolidatedData?.calculated_metrics || {};
 
-  metricCategories.forEach(category => {
-    analyses.forEach(analysis => {
-      const metrics = analysis.consolidatedData?.comprehensive_financial_metrics || {};
-      const categoryData = metrics[category] || {};
+    Object.entries(calculatedMetrics).forEach(([metricName, metricData]) => {
+      if (!metricTrends[metricName]) {
+        metricTrends[metricName] = [];
+      }
 
-      Object.entries(categoryData).forEach(([metricName, metricData]) => {
-        const key = `${category}.${metricName}`;
-        if (!metricTrends[key]) {
-          metricTrends[key] = [];
-        }
+      // Handle both old and new metric data structures
+      let value = null;
 
-        const value = metricData?.current_year?.value;
-        if (value !== null && value !== undefined) {
-          metricTrends[key].push({
-            date: analysis.createdAt,
-            value: value,
-            analysis_id: analysis.analysisId
-          });
-        }
-      });
+      if (metricData?.value !== null && metricData?.value !== undefined) {
+        value = metricData.value;
+      } else if (metricData?.current_year?.value !== null && metricData?.current_year?.value !== undefined) {
+        value = metricData.current_year.value;
+      }
+
+      if (value !== null && value !== undefined && metricData?.available !== false) {
+        metricTrends[metricName].push({
+          date: analysis.createdAt,
+          value: value,
+          analysis_id: analysis.analysisId,
+          unit: metricData?.unit || '',
+          category: metricData?.category || 'other'
+        });
+      }
     });
   });
 
@@ -380,18 +403,36 @@ function buildComparisonData(analyses) {
     if (values.length >= 2) {
       const first = values[0].value;
       const last = values[values.length - 1].value;
+
+      if (Math.abs(first) < 0.0001) return; // Skip if first value is too close to zero
+
       const change = ((last - first) / Math.abs(first)) * 100;
 
-      if (change > 5) improving.push({ metric, change });
-      if (change < -5) declining.push({ metric, change });
+      if (change > 5) improving.push({
+        metric,
+        change: parseFloat(change.toFixed(2)),
+        first_value: first,
+        last_value: last,
+        unit: values[0].unit,
+        category: values[0].category
+      });
+      if (change < -5) declining.push({
+        metric,
+        change: parseFloat(change.toFixed(2)),
+        first_value: first,
+        last_value: last,
+        unit: values[0].unit,
+        category: values[0].category
+      });
     }
   });
 
   return {
+    analyses: analysesComparison,
     health_progression: healthProgression,
     metric_trends: metricTrends,
-    improving_metrics: improving,
-    declining_metrics: declining,
+    improving_metrics: improving.sort((a, b) => b.change - a.change),
+    declining_metrics: declining.sort((a, b) => a.change - b.change),
     summary: generateSummary(improving, declining, healthProgression)
   };
 }
